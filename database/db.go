@@ -42,9 +42,9 @@ func createTables(db *sql.DB) error {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			username TEXT NOT NULL UNIQUE,
+			username TEXT NOT NULL,
 			email TEXT NOT NULL UNIQUE,
-			password_hash TEXT NOT NULL,
+			github_id TEXT UNIQUE,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
@@ -52,7 +52,7 @@ func createTables(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-
+	
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS sessions (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,7 +65,7 @@ func createTables(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-
+	
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS websites (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,7 +82,7 @@ func createTables(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-
+	
 	log.Println("Database tables created successfully")
 	return nil
 }

@@ -24,6 +24,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 
+    "github.com/gin-contrib/sessions"
+    "github.com/gin-contrib/sessions/cookie"
+
 	//"github.com/0xhenrique/egide-server/config"
 	"github.com/0xhenrique/egide-server/database"
 	"github.com/0xhenrique/egide-server/handlers"
@@ -35,6 +38,11 @@ func main() {
 		log.Println("No .env file found, using environment variables")
 	}
 
+    if os.Getenv("SESSION_SECRET") == "" {
+        log.Println("Warning: SESSION_SECRET not set, using a default value")
+        os.Setenv("SESSION_SECRET", "egide-secret-key")
+    }
+
 	db, err := database.InitDB()
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
@@ -44,11 +52,16 @@ func main() {
 	router := gin.Default()
 	router.Use(middleware.CORS())
 	router.Use(middleware.Database(db))
+	store := cookie.NewStore([]byte(os.Getenv("SESSION_SECRET")))
+	router.Use(sessions.Sessions("github_auth_session", store))
+    handlers.InitAuth()
 
 	public := router.Group("/api")
 	{
-		public.POST("/register", handlers.Register)
-		public.POST("/login", handlers.Login)
+		//public.POST("/register", handlers.Register)
+		public.POST("/login", handlers.OAuthLogin)
+		public.GET("/auth/github", handlers.OAuthLogin)
+		public.GET("/auth/github/callback", handlers.OAuthCallback)
 	}
 
 	// Protected routes (needs to be logged in)
@@ -67,7 +80,8 @@ func main() {
 
 		protected.PUT("/websites/:id/protection", handlers.UpdateProtectionMode)
 
-		protected.POST("/logout", handlers.Logout)
+		//protected.POST("/logout", handlers.Logout)
+		public.GET("/logout", handlers.Logout)
 	}
 
 	port := os.Getenv("PORT")

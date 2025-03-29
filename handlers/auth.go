@@ -5,138 +5,121 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"os"
+
+    "github.com/gin-contrib/sessions"
+    "github.com/gin-contrib/sessions/cookie"
+    "github.com/markbates/goth"
+    "github.com/markbates/goth/gothic"
+    "github.com/markbates/goth/providers/github"
 
 	"github.com/0xhenrique/egide-server/database"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
+	//"golang.org/x/crypto/bcrypt"
 )
 
-type RegisterRequest struct {
-	Username string `json:"username" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8"`
+func InitAuth() {
+    store := cookie.NewStore([]byte("secret"))
+    gothic.Store = store
+	goth.UseProviders(
+		github.New(
+			os.Getenv("GITHUB_KEY"), 
+			os.Getenv("GITHUB_SECRET"), 
+			"http://127.0.0.1:8080/api/auth/github/callback",
+		),
+	)
 }
 
-type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+func OAuthLogin(c *gin.Context) {
+	c.Request.URL.RawQuery = "provider=github"
+	gothic.BeginAuthHandler(c.Writer, c.Request)
 }
 
-func Register(c *gin.Context) {
-	var req RegisterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+func OAuthCallback(c *gin.Context) {
+	c.Request.URL.RawQuery = "provider=github"
+	user, err := gothic.CompleteUserAuth(c.Writer, c.Request)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to authenticate user: " + err.Error()})
 		return
 	}
 
 	db := c.MustGet("db").(*sql.DB)
+
+	// Check if user already exists
+	var existingUserID int64
+	err = db.QueryRow(`SELECT id FROM users WHERE email = ?`, user.Email).Scan(&existingUserID)
+
+	if err != nil && err != sql.ErrNoRows {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
 
 	var userID int64
-	err = db.QueryRow(`
-		INSERT INTO users (username, email, password_hash) 
-		VALUES (?, ?, ?) 
-		RETURNING id
-	`, req.Username, req.Email, string(hashedPassword)).Scan(&userID)
+	if err == sql.ErrNoRows {
+		// User doesn't exist, create a new one
+		err = db.QueryRow(`
+			INSERT INTO users (username, email, github_id) 
+			VALUES (?, ?, ?) 
+			RETURNING id
+		`, user.Name, user.Email, user.UserID).Scan(&userID)
 
-	if err != nil {
-		if err.Error() == "UNIQUE constraint failed: users.username" {
-			c.JSON(http.StatusConflict, gin.H{"error": "Username already taken"})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user: " + err.Error()})
 			return
 		}
-		if err.Error() == "UNIQUE constraint failed: users.email" {
-			c.JSON(http.StatusConflict, gin.H{"error": "Email already registered"})
+	} else {
+		userID = existingUserID
+		// Update GitHub ID if needed
+		_, err = db.Exec(`UPDATE users SET github_id = ? WHERE id = ?`, user.UserID, userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
-		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "User registered successfully",
-		"user_id": userID,
-	})
-}
-
-func Login(c *gin.Context) {
-	var req LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	db := c.MustGet("db").(*sql.DB)
-
-	var user database.User
-	var passwordHash string
-	err := db.QueryRow(`
-		SELECT id, username, email, password_hash 
-		FROM users 
-		WHERE username = ?
-	`, req.Username).Scan(&user.ID, &user.Username, &user.Email, &passwordHash)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})
-		return
-	}
-
-	err = bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(req.Password))
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
-		return
-	}
-
+	// Create a session
 	token := uuid.New().String()
 	expiresAt := time.Now().Add(24 * time.Hour)
 
 	_, err = db.Exec(`
 		INSERT INTO sessions (user_id, token, expires_at) 
 		VALUES (?, ?, ?)
-	`, user.ID, token, expiresAt)
+	`, userID, token, expiresAt)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
 		return
 	}
 
+	// Return the token in the response
 	c.JSON(http.StatusOK, gin.H{
 		"token":      token,
 		"expires_at": expiresAt,
 		"user": gin.H{
-			"id":       user.ID,
-			"username": user.Username,
+			"id":       userID,
+			"username": user.Name,
 			"email":    user.Email,
+			"avatar":   user.AvatarURL,
 		},
 	})
 }
 
 func Logout(c *gin.Context) {
+	session := sessions.Default(c)
+	session.Clear()
+	session.Save()
+	
 	authHeader := c.GetHeader("Authorization")
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid authorization format"})
-		return
+	if authHeader != "" {
+		tokenParts := strings.Split(authHeader, " ")
+		if len(tokenParts) == 2 && tokenParts[0] == "Bearer" {
+			token := tokenParts[1]
+			db := c.MustGet("db").(*sql.DB)
+			db.Exec("DELETE FROM sessions WHERE token = ?", token)
+		}
 	}
-	token := parts[1]
-
-	db := c.MustGet("db").(*sql.DB)
-
-	_, err := db.Exec("DELETE FROM sessions WHERE token = ?", token)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to logout"})
-		return
-	}
-
+	
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
 
@@ -165,7 +148,6 @@ func UpdateUser(c *gin.Context) {
 	var req struct {
 		Username string `json:"username"`
 		Email    string `json:"email"`
-		Password string `json:"password"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -198,23 +180,6 @@ func UpdateUser(c *gin.Context) {
 		if err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update email"})
-			return
-		}
-	}
-	
-	if req.Password != "" {
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-		if err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
-			return
-		}
-		
-		_, err = tx.Exec("UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", 
-			string(hashedPassword), userID)
-		if err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
 			return
 		}
 	}
