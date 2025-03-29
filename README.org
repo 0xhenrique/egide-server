@@ -1,0 +1,33 @@
+* Egide server
+
+** Setup
+*** Using Guix
+First:
+#+BEGIN_SRC bash
+$ guix shell --manifest=manifest.scm
+#+END_SRC
+
+And then:
+#+BEGIN_SRC bash
+$ go run main.go
+#+END_SRC
+
+Or maybe:
+#+BEGIN_SRC bash
+$ go build
+$ ./egide-server
+#+END_SRC
+
+** Tests
+To test the entire project:
+#+BEGIN_SRC bash
+$ go test -v ./...
+#+END_SRC
+
+To run individual tests:
+#+BEGIN_SRC bash
+$ go test -v ./database
+#+END_SRC
+
+*** Without Guix
+I don't know, maybe install Guix?
