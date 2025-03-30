@@ -1,0 +1,40 @@
+* API Endpoints
+
+** Authentication
+=GET /auth/github= - Redirect to GitHub for authentication
+=GET /auth/callback= - Handle GitHub OAuth callback
+
+** User
+=GET /api/users/me= - Get the current user's profile
+
+** Websites
+=GET /api/sites= - List all sites for the current user
+=POST /api/sites= - Register a new website
+=GET /api/sites/{id}= - Get a specific site
+=PUT /api/sites/{id}= - Update a website's configuration
+=DELETE /api/sites/{id}= - Delete a site
+
+** CURLing
+Register a New Website
+#+BEGIN_SRC bash
+  curl -X POST http://localhost:8080/api/sites \
+	   -H "Authorization: Bearer JWT_TOKEN" \
+	   -H "Content-Type: application/json" \
+	   -d '{
+	  "domain": "example.com",
+	  "protection_mode": "simple",
+	  "active": true
+	}'
+#+END_SRC
+
+Update Protection Mode
+#+BEGIN_SRC bash
+  curl -X PUT http://localhost:8080/api/sites/1 \
+	   -H "Authorization: Bearer JWT_TOKEN" \
+	   -H "Content-Type: application/json" \
+	   -d '{
+	  "domain": "example.com",
+	  "protection_mode": "hardened",
+	  "active": true
+	}'
+#+END_SRC

@@ -1,33 +1,73 @@
-* Egide server
+* Egide
+This is the back-end server for the Egide reverse-proxy.
 
 ** Setup
 *** Using Guix
 First:
 #+BEGIN_SRC bash
-$ guix shell --manifest=manifest.scm
+  $ guix shell --manifest=manifest.scm
 #+END_SRC
 
 And then:
 #+BEGIN_SRC bash
-$ go run main.go
+  $ cp .env.example .env
+  $ mkdir -p data
+  $ sqlite3 egide.db < migrations/init.sql
 #+END_SRC
 
-Or maybe:
+Build and run:
 #+BEGIN_SRC bash
-$ go build
-$ ./egide-server
+  $ go build -o egide-server ./cmd/server
+  $ ./egide-server
 #+END_SRC
 
 ** Tests
-To test the entire project:
+At this point I just give up.
+
+** Project structure
 #+BEGIN_SRC bash
-$ go test -v ./...
+  reverse-proxy-backend/
+  ├── cmd/
+  │   └── server/
+  │       └── main.go           # Application entry point
+  ├── internal/
+  │   ├── auth/
+  │   │   ├── github.go         # GitHub OAuth implementation
+  │   │   └── middleware.go     # Authentication middleware
+  │   ├── config/
+  │   │   └── config.go         # Application configuration
+  │   ├── handlers/
+  │   │   ├── auth.go           # Auth-related handlers
+  │   │   ├── sites.go          # Website management handlers
+  │   │   └── users.go          # User-related handlers
+  │   ├── models/
+  │   │   ├── site.go           # Website data model
+  │   │   └── user.go           # User data model
+  │   ├── repository/
+  │   │   ├── site_repo.go      # Website data operations
+  │   │   └── user_repo.go      # User data operations
+  │   └── server/
+  │       └── server.go         # HTTP server setup
+  ├── migrations/
+  │   └── init.sql              # Initial database schema
+  ├── .env                      # Environment variables
+  ├── go.mod                    # Go module definition
+  └── go.sum                    # Go module checksums
 #+END_SRC
 
-To run individual tests:
-#+BEGIN_SRC bash
-$ go test -v ./database
-#+END_SRC
+** License
 
-*** Without Guix
-I don't know, maybe install Guix?
+Copyright (C) 2025 Henrique Marques (0xhenrique)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
