@@ -9,6 +9,7 @@ import (
 type Config struct {
 	ServerPort  int
 	DatabaseURL string
+    FrontendURL string
 	GitHubOAuth struct {
 		ClientID     string
 		ClientSecret string
@@ -39,6 +40,7 @@ func New() (*Config, error) {
 	cfg := &Config{
 		ServerPort:  port,
 		DatabaseURL: dbURL,
+        FrontendURL: getEnv("FRONTEND_URL", "http://localhost:3000"),
 		JWTSecret:   jwtSecret,
 	}
 

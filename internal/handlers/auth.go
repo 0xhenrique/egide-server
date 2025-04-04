@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -31,56 +31,56 @@ func (h *AuthHandler) GitHubLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Query().Get("code")
-	if code == "" {
-		http.Error(w, "Missing authorization code", http.StatusBadRequest)
-		return
-	}
+    code := r.URL.Query().Get("code")
+    if code == "" {
+        http.Error(w, "Missing authorization code", http.StatusBadRequest)
+        return
+    }
 
-	accessToken, err := h.authService.Exchange(code)
-	if err != nil {
-		http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
+    accessToken, err := h.authService.Exchange(code)
+    if err != nil {
+        http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
+        return
+    }
 
-	githubUser, err := h.authService.GetUser(accessToken)
-	if err != nil {
-		http.Error(w, "Failed to get user info: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
+    githubUser, err := h.authService.GetUser(accessToken)
+    if err != nil {
+        http.Error(w, "Failed to get user info: "+err.Error(), http.StatusInternalServerError)
+        return
+    }
 
-	user, err := h.userRepo.FindByGitHubID(strconv.FormatInt(githubUser.ID, 10))
-	if err != nil {
-		user = &models.User{
-			GitHubID: strconv.FormatInt(githubUser.ID, 10),
-			Username: githubUser.Login,
-			Email:    githubUser.Email,
-		}
+    user, err := h.userRepo.FindByGitHubID(strconv.FormatInt(githubUser.ID, 10))
+    if err != nil {
+        user = &models.User{
+            GitHubID: strconv.FormatInt(githubUser.ID, 10),
+            Username: githubUser.Login,
+            Email:    githubUser.Email,
+        }
 
-		userID, err := h.userRepo.Create(user)
-		if err != nil {
-			http.Error(w, "Failed to create user: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		user.ID = userID
-	}
+        userID, err := h.userRepo.Create(user)
+        if err != nil {
+            http.Error(w, "Failed to create user: "+err.Error(), http.StatusInternalServerError)
+            return
+        }
+        user.ID = userID
+    }
 
-	token, err := h.authService.GenerateToken(user.ID)
-	if err != nil {
-		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
+    token, err := h.authService.GenerateToken(user.ID)
+    if err != nil {
+        http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
+        return
+    }
 
-	response := struct {
-		Token  string           `json:"token"`
-		User   *models.User     `json:"user"`
-		Expiry int              `json:"expiry"`
-	}{
-		Token:  token,
-		User:   user,
-		Expiry: 86400, // 24 hours in seconds
-	}
+    // Get the redirect URL (or use a default)
+    frontendURL := h.config.FrontendURL
+    if frontendURL == "" {
+        frontendURL = "http://localhost:3000" // Default frontend URL
+    }
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+    // Redirect to frontend with the token
+    // Using hash fragment is more secure for tokens
+    redirectURL := fmt.Sprintf("%s/auth/callback#token=%s&expiry=%d&userId=%d", 
+        frontendURL, token, 86400, user.ID)
+    
+    http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
