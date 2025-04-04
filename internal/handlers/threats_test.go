@@ -95,7 +95,7 @@ func TestGetRecentThreats(t *testing.T) {
 			t.Errorf("threat has unexpected site: %s", threat.Site)
 		}
 
-		if threat.Nature < 1 || threat.Nature > 5 {
+		if threat.Nature < 1 || threat.Nature > 6 {
 			t.Errorf("threat has invalid nature: %d", threat.Nature)
 		}
 
@@ -105,6 +105,90 @@ func TestGetRecentThreats(t *testing.T) {
 
 		if len(threat.Source) < 1 {
 			t.Errorf("threat has no sources")
+		}
+	}
+}
+
+func TestGetThreatDistribution(t *testing.T) {
+	// Create mock site repository with test data
+	mockSiteRepo := &MockSiteRepository{
+		sites: []*models.Site{
+			{
+				ID:             1,
+				UserID:         123,
+				Domain:         "example.com",
+				ProtectionMode: models.SimpleProtection,
+				Active:         true,
+			},
+			{
+				ID:             2,
+				UserID:         123,
+				Domain:         "another-example.com",
+				ProtectionMode: models.HardenedProtection,
+				Active:         true,
+			},
+		},
+	}
+
+	// Create threat service
+	threatService := service.NewThreatService()
+
+	// Create handler with mock repo and service
+	handler := NewThreatHandler(mockSiteRepo, threatService)
+
+	// Create request
+	req, err := http.NewRequest("GET", "/api/threats/distribution", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Add user ID to context
+	ctx := auth.WithUserID(context.Background(), 123)
+	req = req.WithContext(ctx)
+
+	// Create response recorder
+	rr := httptest.NewRecorder()
+
+	// Call handler
+	handler.GetThreatDistribution(rr, req)
+
+	// Check status code
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	// Check that we got valid JSON distribution back
+	var distribution []*models.ThreatDistribution
+	err = json.Unmarshal(rr.Body.Bytes(), &distribution)
+	if err != nil {
+		t.Errorf("could not parse response as JSON: %v", err)
+	}
+
+	// We should have exactly 6 threat types
+	if len(distribution) != 6 {
+		t.Errorf("unexpected number of threat types: got %d, want 6", len(distribution))
+	}
+
+	// Check that all threat types are represented
+	natureMap := make(map[models.ThreatNature]bool)
+	for _, dist := range distribution {
+		natureMap[dist.Nature] = true
+		
+		// Check that the count is positive
+		if dist.Count <= 0 {
+			t.Errorf("threat count should be positive, got %d for nature %d", dist.Count, dist.Nature)
+		}
+		
+		// Verify that the nature is valid
+		if dist.Nature < 1 || dist.Nature > 6 {
+			t.Errorf("invalid threat nature: %d", dist.Nature)
+		}
+	}
+	
+	// Verify all 6 threat types are included
+	for i := 1; i <= 6; i++ {
+		if !natureMap[models.ThreatNature(i)] {
+			t.Errorf("missing threat nature: %d", i)
 		}
 	}
 }

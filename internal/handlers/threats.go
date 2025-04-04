@@ -48,3 +48,31 @@ func (h *ThreatHandler) GetRecentThreats(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(threats)
 }
+
+// GetThreatDistribution handles GET /api/threats/distribution
+func (h *ThreatHandler) GetThreatDistribution(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from authenticated context
+	userID, err := auth.UserIDFromContext(r.Context())
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Get all sites for the user
+	sites, err := h.siteRepo.FindByUserID(userID)
+	if err != nil {
+		http.Error(w, "Error fetching sites", http.StatusInternalServerError)
+		return
+	}
+
+	// Get threat distribution
+	distribution, err := h.threatService.GetThreatDistribution(sites)
+	if err != nil {
+		http.Error(w, "Error fetching threat distribution: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return distribution as JSON
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(distribution)
+}

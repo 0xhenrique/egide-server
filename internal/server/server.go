@@ -87,6 +87,7 @@ func New(cfg *config.Config, db *sql.DB) *Server {
 		// Threat routes
 		r.Route("/api/threats", func(r chi.Router) {
 			r.Get("/", threatHandler.GetRecentThreats)
+			r.Get("/distribution", threatHandler.GetThreatDistribution)
 		})
 	})
 
