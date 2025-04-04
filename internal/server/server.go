@@ -15,6 +15,7 @@ import (
 	"egide-server/internal/config"
 	"egide-server/internal/handlers"
 	"egide-server/internal/repository"
+	"egide-server/internal/service"
 )
 
 type Server struct {
@@ -27,7 +28,10 @@ func New(cfg *config.Config, db *sql.DB) *Server {
 	userRepo := repository.NewUserRepository(db)
 	siteRepo := repository.NewSiteRepository(db)
 
+	// Init services
 	authService := auth.NewGitHubService(cfg)
+	threatService := service.NewThreatService()
+
 	authMiddleware := auth.NewMiddleware(cfg.JWTSecret)
 	r := chi.NewRouter()
 
@@ -46,6 +50,7 @@ func New(cfg *config.Config, db *sql.DB) *Server {
 	authHandler := handlers.NewAuthHandler(authService, userRepo, cfg)
 	siteHandler := handlers.NewSiteHandler(siteRepo)
 	userHandler := handlers.NewUserHandler(userRepo)
+	threatHandler := handlers.NewThreatHandler(siteRepo, threatService)
 
 	// Public routes
 	r.Group(func(r chi.Router) {
@@ -77,6 +82,11 @@ func New(cfg *config.Config, db *sql.DB) *Server {
 			r.Get("/{id}", siteHandler.GetSite)
 			r.Put("/{id}", siteHandler.UpdateSite)
 			r.Delete("/{id}", siteHandler.DeleteSite)
+		})
+		
+		// Threat routes
+		r.Route("/api/threats", func(r chi.Router) {
+			r.Get("/", threatHandler.GetRecentThreats)
 		})
 	})
 

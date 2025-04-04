@@ -14,6 +14,9 @@
 =PUT /api/sites/{id}= - Update a website's configuration
 =DELETE /api/sites/{id}= - Delete a site
 
+** Threats
+=GET /api/threats= - Get recent threats for all sites owned by the user
+
 ** CURLing
 Register a New Website
 #+BEGIN_SRC bash
@@ -37,4 +40,10 @@ Update Protection Mode
 	  "protection_mode": "hardened",
 	  "active": true
 	}'
+#+END_SRC
+
+Get Recent Threats
+#+BEGIN_SRC bash
+  curl -X GET http://localhost:8080/api/threats \
+       -H "Authorization: Bearer JWT_TOKEN"
 #+END_SRC
