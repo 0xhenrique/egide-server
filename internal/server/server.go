@@ -31,6 +31,7 @@ func New(cfg *config.Config, db *sql.DB) *Server {
 	// Init services
 	authService := auth.NewGitHubService(cfg)
 	threatService := service.NewThreatService()
+	metricsService := service.NewMetricsService()
 
 	authMiddleware := auth.NewMiddleware(cfg.JWTSecret)
 	r := chi.NewRouter()
@@ -51,6 +52,7 @@ func New(cfg *config.Config, db *sql.DB) *Server {
 	siteHandler := handlers.NewSiteHandler(siteRepo)
 	userHandler := handlers.NewUserHandler(userRepo)
 	threatHandler := handlers.NewThreatHandler(siteRepo, threatService)
+	metricsHandler := handlers.NewMetricsHandler(metricsService)
 
 	// Public routes
 	r.Group(func(r chi.Router) {
@@ -88,6 +90,11 @@ func New(cfg *config.Config, db *sql.DB) *Server {
 		r.Route("/api/threats", func(r chi.Router) {
 			r.Get("/", threatHandler.GetRecentThreats)
 			r.Get("/distribution", threatHandler.GetThreatDistribution)
+		})
+		
+		// Metrics routes
+		r.Route("/api/metrics", func(r chi.Router) {
+			r.Get("/kpi", metricsHandler.GetKpi)
 		})
 	})
 

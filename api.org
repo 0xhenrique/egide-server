@@ -18,6 +18,9 @@
 =GET /api/threats= - Get recent threats for all sites owned by the user
 =GET /api/threats/distribution= - Get the distribution of threats by nature across all sites
 
+** Metrics
+=GET /api/metrics/kpi= - Get KPI metrics for the dashboard
+
 ** CURLing
 Register a New Website
 #+BEGIN_SRC bash
@@ -52,5 +55,11 @@ Get Recent Threats
 Get Threat Distribution
 #+BEGIN_SRC bash
   curl -X GET http://localhost:8080/api/threats/distribution \
+       -H "Authorization: Bearer JWT_TOKEN"
+#+END_SRC
+
+Get KPI Metrics
+#+BEGIN_SRC bash
+  curl -X GET http://localhost:8080/api/metrics/kpi \
        -H "Authorization: Bearer JWT_TOKEN"
 #+END_SRC
