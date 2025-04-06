@@ -20,8 +20,8 @@ func NewSiteRepository(db *sql.DB) *SiteRepository {
 
 func (r *SiteRepository) Create(site *models.Site) (int64, error) {
 	query := `
-		INSERT INTO sites (user_id, domain, protection_mode, active, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO sites (user_id, domain, protection_mode, active, verified, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
 
 	now := time.Now()
@@ -31,6 +31,7 @@ func (r *SiteRepository) Create(site *models.Site) (int64, error) {
 		site.Domain,
 		site.ProtectionMode,
 		site.Active,
+		site.Verified,
 		now,
 		now,
 	)
@@ -43,7 +44,7 @@ func (r *SiteRepository) Create(site *models.Site) (int64, error) {
 
 func (r *SiteRepository) FindByID(id int64) (*models.Site, error) {
 	query := `
-		SELECT id, user_id, domain, protection_mode, active, created_at, updated_at
+		SELECT id, user_id, domain, protection_mode, active, verified, created_at, updated_at
 		FROM sites
 		WHERE id = ?
 	`
@@ -57,6 +58,7 @@ func (r *SiteRepository) FindByID(id int64) (*models.Site, error) {
 		&site.Domain,
 		&protectionMode,
 		&site.Active,
+		&site.Verified,
 		&site.CreatedAt,
 		&site.UpdatedAt,
 	)
@@ -74,7 +76,7 @@ func (r *SiteRepository) FindByID(id int64) (*models.Site, error) {
 
 func (r *SiteRepository) FindByUserID(userID int64) ([]*models.Site, error) {
 	query := `
-		SELECT id, user_id, domain, protection_mode, active, created_at, updated_at
+		SELECT id, user_id, domain, protection_mode, active, verified, created_at, updated_at
 		FROM sites
 		WHERE user_id = ?
 		ORDER BY created_at DESC
@@ -97,6 +99,7 @@ func (r *SiteRepository) FindByUserID(userID int64) ([]*models.Site, error) {
 			&site.Domain,
 			&protectionMode,
 			&site.Active,
+			&site.Verified,
 			&site.CreatedAt,
 			&site.UpdatedAt,
 		)
@@ -117,7 +120,7 @@ func (r *SiteRepository) FindByUserID(userID int64) ([]*models.Site, error) {
 
 func (r *SiteRepository) FindByDomain(userID int64, domain string) (*models.Site, error) {
 	query := `
-		SELECT id, user_id, domain, protection_mode, active, created_at, updated_at
+		SELECT id, user_id, domain, protection_mode, active, verified, created_at, updated_at
 		FROM sites
 		WHERE user_id = ? AND domain = ?
 	`
@@ -131,6 +134,7 @@ func (r *SiteRepository) FindByDomain(userID int64, domain string) (*models.Site
 		&site.Domain,
 		&protectionMode,
 		&site.Active,
+		&site.Verified,
 		&site.CreatedAt,
 		&site.UpdatedAt,
 	)
@@ -149,7 +153,7 @@ func (r *SiteRepository) FindByDomain(userID int64, domain string) (*models.Site
 func (r *SiteRepository) Update(site *models.Site) error {
 	query := `
 		UPDATE sites
-		SET domain = ?, protection_mode = ?, active = ?, updated_at = ?
+		SET domain = ?, protection_mode = ?, active = ?, verified = ?, updated_at = ?
 		WHERE id = ?
 	`
 
@@ -158,8 +162,26 @@ func (r *SiteRepository) Update(site *models.Site) error {
 		site.Domain,
 		site.ProtectionMode,
 		site.Active,
+		site.Verified,
 		time.Now(),
 		site.ID,
+	)
+
+	return err
+}
+
+func (r *SiteRepository) UpdateVerificationStatus(id int64, verified bool) error {
+	query := `
+		UPDATE sites
+		SET verified = ?, updated_at = ?
+		WHERE id = ?
+	`
+
+	_, err := r.db.Exec(
+		query,
+		verified,
+		time.Now(),
+		id,
 	)
 
 	return err

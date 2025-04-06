@@ -84,6 +84,8 @@ func New(cfg *config.Config, db *sql.DB) *Server {
 			r.Get("/{id}", siteHandler.GetSite)
 			r.Put("/{id}", siteHandler.UpdateSite)
 			r.Delete("/{id}", siteHandler.DeleteSite)
+			r.Post("/{id}/verify", siteHandler.VerifySite)
+			r.Post("/{id}/activate", siteHandler.ToggleSiteActivation)
 		})
 		
 		// Threat routes

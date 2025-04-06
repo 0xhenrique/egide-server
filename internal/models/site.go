@@ -18,6 +18,7 @@ type Site struct {
 	Domain         string         `json:"domain"`
 	ProtectionMode ProtectionMode `json:"protection_mode"`
 	Active         bool           `json:"active"`
+	Verified       bool           `json:"verified"`
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 }
@@ -27,4 +28,5 @@ type SiteInput struct {
 	Domain         string         `json:"domain" validate:"required,fqdn"`
 	ProtectionMode ProtectionMode `json:"protection_mode" validate:"required,oneof=simple hardened"`
 	Active         *bool          `json:"active,omitempty"`
+	Verified       *bool          `json:"verified,omitempty"`
 }

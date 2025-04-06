@@ -49,17 +49,112 @@ Update Protection Mode
 Get Recent Threats
 #+BEGIN_SRC bash
   curl -X GET http://localhost:8080/api/threats \
-       -H "Authorization: Bearer JWT_TOKEN"
+	   -H "Authorization: Bearer JWT_TOKEN"
 #+END_SRC
 
 Get Threat Distribution
 #+BEGIN_SRC bash
   curl -X GET http://localhost:8080/api/threats/distribution \
-       -H "Authorization: Bearer JWT_TOKEN"
+	   -H "Authorization: Bearer JWT_TOKEN"
 #+END_SRC
 
 Get KPI Metrics
 #+BEGIN_SRC bash
   curl -X GET http://localhost:8080/api/metrics/kpi \
-       -H "Authorization: Bearer JWT_TOKEN"
+	   -H "Authorization: Bearer JWT_TOKEN"
+#+END_SRC
+
+Verify a site (set verified status to true)
+#+BEGIN_SRC bash
+  curl -X POST http://localhost:8080/api/sites/1/verify \
+	   -H "Authorization: Bearer JWT_TOKEN" \
+	   -H "Content-Type: application/json" \
+	   -d '{
+		  "verified": true
+	   }'
+#+END_SRC
+
+Unverify a site (set verified status to false)
+#+BEGIN_SRC bash
+  curl -X POST http://localhost:8080/api/sites/1/verify \
+	   -H "Authorization: Bearer JWT_TOKEN" \
+	   -H "Content-Type: application/json" \
+	   -d '{
+		  "verified": false
+	   }'
+#+END_SRC
+
+Check site status (includes verification status)
+#+BEGIN_SRC bash
+  curl -X GET http://localhost:8080/api/sites/1 \
+	   -H "Authorization: Bearer JWT_TOKEN"
+#+END_SRC
+
+Create a new site (verified defaults to false)
+#+BEGIN_SRC bash
+  curl -X POST http://localhost:8080/api/sites \
+	   -H "Authorization: Bearer JWT_TOKEN" \
+	   -H "Content-Type: application/json" \
+	   -d '{
+		  "domain": "example.com",
+		  "protection_mode": "simple",
+		  "active": true
+	   }'
+#+END_SRC
+
+Verify a site (set verified status to true)
+#+BEGIN_SRC bash
+curl -X POST http://localhost:8080/api/sites/1/verify \
+     -H "Authorization: Bearer JWT_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+        "verified": true
+     }'
+#+END_SRC
+
+Unverify a site (set verified status to false, will also set active to false)
+#+BEGIN_SRC bash
+curl -X POST http://localhost:8080/api/sites/1/verify \
+     -H "Authorization: Bearer JWT_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+        "verified": false
+     }'
+#+END_SRC
+
+Activate a verified site
+#+BEGIN_SRC bash
+curl -X POST http://localhost:8080/api/sites/1/activate \
+     -H "Authorization: Bearer JWT_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+        "active": true
+     }'
+#+END_SRC
+
+Deactivate a site (can be done regardless of verification status)
+#+BEGIN_SRC bash
+curl -X POST http://localhost:8080/api/sites/1/activate \
+     -H "Authorization: Bearer JWT_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+        "active": false
+     }'
+#+END_SRC
+
+Check site status (includes verification status)
+#+BEGIN_SRC bash
+curl -X GET http://localhost:8080/api/sites/1 \
+     -H "Authorization: Bearer JWT_TOKEN"
+#+END_SRC
+
+Create a new site (verified and active default to false)
+#+BEGIN_SRC bash
+curl -X POST http://localhost:8080/api/sites \
+     -H "Authorization: Bearer JWT_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+        "domain": "example.com",
+        "protection_mode": "simple"
+     }'
 #+END_SRC
