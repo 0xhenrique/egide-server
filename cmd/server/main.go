@@ -9,10 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	"egide-server/internal/config"
+	"egide-server/internal/migration"
+	"egide-server/internal/server"
+
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
-	"egide-server/internal/config"
-	"egide-server/internal/server"
 )
 
 func main() {
@@ -37,6 +39,11 @@ func main() {
 
 	if err := db.Ping(); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
+	}
+
+	if err := migration.RunMigrations(db, "./migrations"); err != nil {
+		log.Printf("Warning: error running migrations: %v", err)
+		// log.Fatalf("Failed to run migrations: %v", err)
 	}
 
 	srv := server.New(cfg, db)
