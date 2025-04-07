@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"strconv"
+	"log"
 )
 
 type Config struct {
@@ -25,7 +26,7 @@ func New() (*Config, error) {
 		return nil, errors.New("invalid SERVER_PORT")
 	}
 
-	dbURL := getEnv("DATABASE_URL", "./data.db")
+	dbURL := getEnv("DATABASE_URL", "./egide.db")
 	jwtSecret := getEnv("JWT_SECRET", "")
 	if jwtSecret == "" {
 		return nil, errors.New("JWT_SECRET environment variable is required")
@@ -48,6 +49,8 @@ func New() (*Config, error) {
 	cfg.GitHubOAuth.ClientSecret = githubClientSecret
 	cfg.GitHubOAuth.RedirectURL = getEnv("GITHUB_REDIRECT_URL", "http://localhost:8080/auth/callback")
 	cfg.GitHubOAuth.Scopes = []string{"user:email"}
+
+	log.Printf("GitHub RedirectURL: %s", cfg.GitHubOAuth.RedirectURL)
 
 	return cfg, nil
 }
