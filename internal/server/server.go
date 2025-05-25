@@ -19,19 +19,22 @@ import (
 )
 
 type Server struct {
-	server *http.Server
-	config *config.Config
+	server            *http.Server
+	config            *config.Config
+	monitoringService *service.MonitoringService
 }
 
 func New(cfg *config.Config, db *sql.DB) *Server {
 	// Init repos
 	userRepo := repository.NewUserRepository(db)
 	siteRepo := repository.NewSiteRepository(db)
+	healthCheckRepo := repository.NewHealthCheckRepository(db)
 
 	// Init services
 	authService := auth.NewGitHubService(cfg)
 	threatService := service.NewThreatService()
-	metricsService := service.NewMetricsService()
+	monitoringService := service.NewMonitoringService(healthCheckRepo)
+	metricsService := service.NewMetricsService(healthCheckRepo)
 
 	authMiddleware := auth.NewMiddleware(cfg.JWTSecret)
 	r := chi.NewRouter()
@@ -40,7 +43,7 @@ func New(cfg *config.Config, db *sql.DB) *Server {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"}, // This should be restricted in production
+		AllowedOrigins:   []string{"*"}, // @TODO: This should be restricted in production
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		ExposedHeaders:   []string{"Link"},
@@ -105,15 +108,24 @@ func New(cfg *config.Config, db *sql.DB) *Server {
 			Addr:    fmt.Sprintf(":%d", cfg.ServerPort),
 			Handler: r,
 		},
-		config: cfg,
+		config:            cfg,
+		monitoringService: monitoringService,
 	}
 }
 
 func (s *Server) Start() error {
 	log.Printf("Starting server on port %d\n", s.config.ServerPort)
+	
+	// Start monitoring service
+	s.monitoringService.Start()
+	
 	return s.server.ListenAndServe()
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
+	log.Println("Stopping monitoring service...")
+	s.monitoringService.Stop()
+	
+	log.Println("Shutting down HTTP server...")
 	return s.server.Shutdown(ctx)
 }

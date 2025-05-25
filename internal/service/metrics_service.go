@@ -1,9 +1,12 @@
 package service
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
-	"fmt"
+
+	"egide-server/internal/repository"
+	"egide-server/internal/models"
 )
 
 // KpiMetric represents a single KPI metric with value and change
@@ -23,52 +26,72 @@ type KpiData struct {
 
 // MetricsService handles metrics data operations
 type MetricsService struct {
-	rand *rand.Rand
+	rand               *rand.Rand
+	healthCheckRepo    *repository.HealthCheckRepository
 }
 
 // NewMetricsService creates a new metrics service
-func NewMetricsService() *MetricsService {
+func NewMetricsService(healthCheckRepo *repository.HealthCheckRepository) *MetricsService {
 	source := rand.NewSource(time.Now().UnixNano())
 	return &MetricsService{
-		rand: rand.New(source),
+		rand:            rand.New(source),
+		healthCheckRepo: healthCheckRepo,
 	}
 }
 
 // GetKpiData returns KPI data for the given user's sites
-// Currently mocks the data, but in the future will fetch from the actual data source
 func (s *MetricsService) GetKpiData(userID int64) (*KpiData, error) {
-	// In a real implementation, this would fetch actual metrics for the user's sites
-	// For now, we'll generate realistic mock data
+	now := time.Now()
 	
-	// Total Requests (typically a large number)
+	// Get current month data (last 30 days)
+	currentStart := now.AddDate(0, 0, -30)
+	currentChecks, err := s.healthCheckRepo.GetChecksInRange(currentStart, now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current health checks: %v", err)
+	}
+	
+	// Get previous month data (30-60 days ago)
+	previousStart := now.AddDate(0, 0, -60)
+	previousEnd := now.AddDate(0, 0, -30)
+	previousChecks, err := s.healthCheckRepo.GetChecksInRange(previousStart, previousEnd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get previous health checks: %v", err)
+	}
+	
+	// Calculate uptime and response time metrics
+	currentUptime, currentAvgResponseTime := s.calculateMetrics(currentChecks)
+	previousUptime, previousAvgResponseTime := s.calculateMetrics(previousChecks)
+	
+	// Calculate change percentages
+	var uptimeChange *float64
+	var responseTimeChange *float64
+	
+	if len(previousChecks) > 0 {
+		uptimeChangeVal := currentUptime - previousUptime
+		uptimeChange = &uptimeChangeVal
+		
+		if previousAvgResponseTime > 0 {
+			responseTimeChangeVal := ((currentAvgResponseTime - previousAvgResponseTime) / previousAvgResponseTime) * 100
+			responseTimeChange = &responseTimeChangeVal
+		}
+	}
+	
+	// Generate mock data for total requests and blocked threats (as before)
 	totalRequests := 500000 + s.rand.Intn(1000000)
-	totalRequestsChange := (s.rand.Float64() * 30) - 15 // -15% to +15%
+	totalRequestsChange := (s.rand.Float64() * 30) - 15
 	
-	// Blocked Threats (smaller than total requests)
 	blockedThreats := 2000 + s.rand.Intn(5000)
-	blockedThreatsChange := (s.rand.Float64() * 20) - 10 // -10% to +10%
+	blockedThreatsChange := (s.rand.Float64() * 20) - 10
 	
-	// Response Time (typically between 30ms and 200ms)
-	responseTimeValue := 30 + s.rand.Intn(170)
-	responseTimeChange := (s.rand.Float64() * 10) - 5 // -5% to +5%
+	// Calculate downtime information
+	downtimeInfo := s.calculateDowntimeInfo(currentChecks)
 	
-	// Uptime (typically high, between 99.5% and 100%)
-	uptimeValue := 99.5 + (s.rand.Float64() * 0.5)
+	// Format response time
+	responseTimeStr := fmt.Sprintf("%.0fms", currentAvgResponseTime)
 	
-	// Calculate a realistic downtime string based on uptime percentage
-	// 100% uptime = 0 downtime, 99.5% = ~7.2 hours/month
-	downtimeMinutes := int((100 - uptimeValue) * 0.01 * 24 * 60) // downtime in minutes for last day
-	downtimeString := fmt.Sprintf("Total downtime: %dm %ds", 
-		downtimeMinutes, 
-		s.rand.Intn(60)) // random seconds
-	
-	// Format the response time as a string with "ms" suffix
-	responseTimeStr := fmt.Sprintf("%dms", responseTimeValue)
-	
-	// Round the changes to 1 decimal place
+	// Round values
 	totalRequestsChangeRounded := round(totalRequestsChange, 1)
 	blockedThreatsChangeRounded := round(blockedThreatsChange, 1)
-	responseTimeChangeRounded := round(responseTimeChange, 1)
 	
 	return &KpiData{
 		TotalRequests: KpiMetric{
@@ -81,13 +104,65 @@ func (s *MetricsService) GetKpiData(userID int64) (*KpiData, error) {
 		},
 		ResponseTime: KpiMetric{
 			Value:  responseTimeStr,
-			Change: &responseTimeChangeRounded,
+			Change: responseTimeChange,
 		},
 		Uptime: KpiMetric{
-			Value:    round(uptimeValue, 2),
-			Subvalue: &downtimeString,
+			Value:    round(currentUptime, 2),
+			Change:   uptimeChange,
+			Subvalue: &downtimeInfo,
 		},
 	}, nil
+}
+
+// calculateMetrics computes uptime percentage and average response time from health checks
+func (s *MetricsService) calculateMetrics(checks []*models.HealthCheck) (uptime float64, avgResponseTime float64) {
+	if len(checks) == 0 {
+		return 100.0, 0.0 // Default to 100% uptime if no data
+	}
+	
+	successCount := 0
+	totalResponseTime := 0
+	
+	for _, check := range checks {
+		if check.Success {
+			successCount++
+		}
+		totalResponseTime += check.ResponseTimeMs
+	}
+	
+	uptime = (float64(successCount) / float64(len(checks))) * 100
+	avgResponseTime = float64(totalResponseTime) / float64(len(checks))
+	
+	return uptime, avgResponseTime
+}
+
+// calculateDowntimeInfo creates a human-readable downtime string
+func (s *MetricsService) calculateDowntimeInfo(checks []*models.HealthCheck) string {
+	if len(checks) == 0 {
+		return "No monitoring data available"
+	}
+	
+	// Calculate total downtime in the period
+	downtime := 0
+	for _, check := range checks {
+		if !check.Success {
+			// Each failed check represents ~1 minute of downtime (our check interval)
+			downtime += 60 // seconds
+		}
+	}
+	
+	if downtime == 0 {
+		return "No downtime recorded"
+	}
+	
+	// Convert to human readable format
+	minutes := downtime / 60
+	remainingSeconds := downtime % 60
+	
+	if minutes > 0 {
+		return fmt.Sprintf("Total downtime: %dm %ds", minutes, remainingSeconds)
+	}
+	return fmt.Sprintf("Total downtime: %ds", remainingSeconds)
 }
 
 // round rounds a float64 to the specified number of decimal places
